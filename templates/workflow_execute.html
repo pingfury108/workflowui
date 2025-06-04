@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.workflowName}} - 智能工作流处理平台</title>
+    <link href="/public/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .drop-zone.dragover {
+            border-color: #0d6efd;
+            background-color: #e9ecef;
+        }
+        .drop-zone img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 4px;
+        }
+        .result-area {
+            margin-top: 20px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .loading .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .parameter-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .parameter-section h5 {
+            margin-bottom: 15px;
+            color: #495057;
+        }
+        .workflow-title {
+            color: #0d6efd;
+            margin-bottom: 20px;
+        }
+        .back-button {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card">
+                    <div class="card-body">
+                        <!-- 返回按钮 -->
+                        <div class="back-button">
+                            <a href="/" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> 返回工作流选择
+                            </a>
+                        </div>
+
+                        <!-- 当前工作流标题 -->
+                        <h2 class="workflow-title text-center">{{.workflowName}}</h2>
+                        
+                        <!-- 图片上传区域 -->
+                        <div class="drop-zone" id="dropZone">
+                            <div id="placeholder">
+                                <p class="mb-2">拖放图片到这里</p>
+                                <p class="text-muted small">或使用 Ctrl+V 粘贴图片</p>
+                            </div>
+                        </div>
+                        
+                        <!-- 动态参数表单 -->
+                        <div class="parameter-section" id="parameterSection" style="display: none;">
+                            <h5>参数设置</h5>
+                            <div id="parametersContainer"></div>
+                        </div>
+                        
+                        <div class="text-center mb-3">
+                            <button id="processBtn" class="btn btn-primary btn-lg" disabled>开始处理</button>
+                        </div>
+
+                        <div class="loading" id="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">处理中...</span>
+                            </div>
+                            <p class="mt-2" id="loadingText">正在处理，请稍候...</p>
+                        </div>
+
+                        <div class="result-area" id="resultArea" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6" id="textResultContainer" style="display: none;">
+                                    <label for="textResult" class="form-label">识别内容：</label>
+                                    <textarea class="form-control" id="textResult" rows="8" readonly></textarea>
+                                </div>
+                                <div class="col-md-6" id="outputResultContainer">
+                                    <label for="outputResult" class="form-label">处理结果：</label>
+                                    <textarea class="form-control" id="outputResult" rows="8" readonly></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const parameterSection = document.getElementById('parameterSection');
+        const parametersContainer = document.getElementById('parametersContainer');
+        const processBtn = document.getElementById('processBtn');
+        const loading = document.getElementById('loading');
+        const loadingText = document.getElementById('loadingText');
+        const resultArea = document.getElementById('resultArea');
+        const textResult = document.getElementById('textResult');
+        const outputResult = document.getElementById('outputResult');
+        const textResultContainer = document.getElementById('textResultContainer');
+        const outputResultContainer = document.getElementById('outputResultContainer');
+        const placeholder = document.getElementById('placeholder');
+        
+        let currentImageData = null;
+        let currentWorkflow = "{{.workflowKey}}";
+        let workflowConfig = null;
+
+        // 加载当前工作流配置
+        async function loadWorkflowConfig() {
+            try {
+                const response = await fetch('/api/workflows');
+                const data = await response.json();
+                workflowConfig = data.workflows[currentWorkflow];
+                
+                if (workflowConfig) {
+                    // 生成参数表单
+                    generateParameterForm(workflowConfig.parameters || []);
+                }
+            } catch (error) {
+                console.error('加载工作流配置失败:', error);
+            }
+        }
+
+        function generateParameterForm(parameters) {
+            parametersContainer.innerHTML = '';
+            
+            if (parameters.length === 0) {
+                parameterSection.style.display = 'none';
+                return;
+            }
+            
+            parameterSection.style.display = 'block';
+            
+            parameters.forEach(param => {
+                const div = document.createElement('div');
+                div.className = 'mb-3';
+                
+                const label = document.createElement('label');
+                label.className = 'form-label';
+                label.htmlFor = param.key;
+                label.textContent = param.label + (param.required ? ' *' : '');
+                
+                let input;
+                if (param.type === 'select') {
+                    input = document.createElement('select');
+                    input.className = 'form-select';
+                    
+                    if (!param.required) {
+                        const defaultOption = document.createElement('option');
+                        defaultOption.value = '';
+                        defaultOption.textContent = '请选择...';
+                        input.appendChild(defaultOption);
+                    }
+                    
+                    param.options.forEach(option => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = option;
+                        optionElement.textContent = option;
+                        if (option === param.default_value) {
+                            optionElement.selected = true;
+                        }
+                        input.appendChild(optionElement);
+                    });
+                } else {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'form-control';
+                    if (param.placeholder) {
+                        input.placeholder = param.placeholder;
+                    }
+                    if (param.default_value) {
+                        input.value = param.default_value;
+                    }
+                }
+                
+                input.id = param.key;
+                input.name = param.key;
+                if (param.required) {
+                    input.required = true;
+                }
+                
+                div.appendChild(label);
+                div.appendChild(input);
+                parametersContainer.appendChild(div);
+            });
+        }
+
+        // 处理粘贴事件
+        document.addEventListener('paste', async (e) => {
+            const items = e.clipboardData.items;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    await previewImage(file);
+                    break;
+                }
+            }
+        });
+
+        // 处理拖放事件
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                await previewImage(file);
+            }
+        });
+
+        // 处理按钮点击事件
+        processBtn.addEventListener('click', async () => {
+            if (currentImageData && currentWorkflow) {
+                await processWorkflow();
+            }
+        });
+
+        // 预览图片
+        async function previewImage(file) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                currentImageData = e.target.result;
+                
+                // 显示图片
+                const img = document.createElement('img');
+                img.src = currentImageData;
+                dropZone.innerHTML = '';
+                dropZone.appendChild(img);
+                
+                // 启用处理按钮
+                processBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 处理工作流
+        async function processWorkflow() {
+            if (!currentWorkflow || !currentImageData) return;
+            
+            // 显示加载动画
+            loading.style.display = 'block';
+            processBtn.disabled = true;
+            resultArea.style.display = 'none';
+            
+            loadingText.textContent = `正在执行${workflowConfig.name}，请稍候...`;
+            
+            // 收集参数
+            const parameters = {};
+            if (workflowConfig.parameters) {
+                workflowConfig.parameters.forEach(param => {
+                    const input = document.getElementById(param.key);
+                    if (input && input.value.trim()) {
+                        parameters[param.key] = input.value.trim();
+                    }
+                });
+            }
+
+            try {
+                const response = await fetch(`/api/workflow/${currentWorkflow}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_data: currentImageData,
+                        parameters: parameters
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // 显示结果
+                    resultArea.style.display = 'block';
+                    
+                    if (data.text && data.text.trim()) {
+                        textResultContainer.style.display = 'block';
+                        outputResultContainer.className = 'col-md-6';
+                        textResult.value = data.text;
+                    } else {
+                        textResultContainer.style.display = 'none';
+                        outputResultContainer.className = 'col-md-12';
+                    }
+                    
+                    // 处理输出结果
+                    if (data.output) {
+                        outputResult.value = data.output;
+                    } else if (data.result) {
+                        try {
+                            const parsedResult = JSON.parse(data.result);
+                            if (parsedResult && typeof parsedResult === 'object' && 'data' in parsedResult) {
+                                outputResult.value = parsedResult.data;
+                            } else {
+                                outputResult.value = data.result;
+                            }
+                        } catch (parseError) {
+                            outputResult.value = data.result;
+                        }
+                    } else {
+                        outputResult.value = '处理完成，但没有返回结果。';
+                    }
+                } else {
+                    outputResult.value = '错误: ' + (data.error || '处理失败');
+                    resultArea.style.display = 'block';
+                    textResultContainer.style.display = 'none';
+                    outputResultContainer.className = 'col-md-12';
+                }
+            } catch (error) {
+                outputResult.value = '错误: ' + error.message;
+                resultArea.style.display = 'block';
+                textResultContainer.style.display = 'none';
+                outputResultContainer.className = 'col-md-12';
+            } finally {
+                loading.style.display = 'none';
+                processBtn.disabled = false;
+            }
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadWorkflowConfig();
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能工作流处理平台</title>
+    <link href="/public/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .selection-area {
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .workflow-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 40px;
+            border: 1px solid #dee2e6;
+            width: 100%;
+            max-width: 500px;
+        }
+        .workflow-title {
+            color: #0d6efd;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .workflow-select {
+            margin-bottom: 20px;
+        }
+        .go-button {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+        }
+        .go-button:disabled {
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="selection-area">
+                    <div class="workflow-card">
+                        <h2 class="workflow-title">智能工作流处理平台</h2>
+                        
+                        <div class="workflow-select">
+                            <label for="workflowSelect" class="form-label">选择工作流:</label>
+                            <select class="form-select form-select-lg" id="workflowSelect">
+                                <option value="">请选择工作流</option>
+                            </select>
+                        </div>
+                        
+                        <div class="text-center">
+                            <button id="goToWorkflow" class="btn btn-primary btn-lg go-button" disabled>
+                                开始使用
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const workflowSelect = document.getElementById('workflowSelect');
+        const goToWorkflowBtn = document.getElementById('goToWorkflow');
+        
+        let workflows = {};
+
+        // 加载工作流配置
+        async function loadWorkflows() {
+            try {
+                const response = await fetch('/api/workflows');
+                const data = await response.json();
+                workflows = data.workflows;
+                
+                // 填充工作流选择器
+                workflowSelect.innerHTML = '<option value="">请选择工作流</option>';
+                for (const [key, workflow] of Object.entries(workflows)) {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = workflow.name;
+                    workflowSelect.appendChild(option);
+                }
+            } catch (error) {
+                console.error('加载工作流配置失败:', error);
+            }
+        }
+
+        // 工作流选择变化
+        workflowSelect.addEventListener('change', function() {
+            const selectedKey = this.value;
+            goToWorkflowBtn.disabled = !selectedKey;
+        });
+
+        // 跳转到工作流执行页面
+        goToWorkflowBtn.addEventListener('click', function() {
+            const selectedKey = workflowSelect.value;
+            if (selectedKey) {
+                window.location.href = `/workflow/${selectedKey}`;
+            }
+        });
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadWorkflows();
+        });
+    </script>
+</body>
+</html> 
