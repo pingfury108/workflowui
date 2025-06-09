@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.workflowName}} - 智能工作流处理平台</title>
     <link href="/public/bootstrap.min.css" rel="stylesheet">
+    <!-- KaTeX CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
     <style>
         .drop-zone {
             border: 2px dashed #ccc;
@@ -57,6 +59,33 @@
         .back-button {
             margin-bottom: 20px;
         }
+        .format-buttons {
+            margin-bottom: 15px;
+        }
+        .format-buttons .btn {
+            margin-right: 10px;
+        }
+        .output-display {
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+        }
+        .katex-display {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        .json-display {
+            background: #f8f9fa;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -108,7 +137,16 @@
                                 </div>
                                 <div class="col-md-6" id="outputResultContainer">
                                     <label for="outputResult" class="form-label">处理结果：</label>
-                                    <textarea class="form-control" id="outputResult" rows="8" readonly></textarea>
+                                    <!-- 格式切换按钮 -->
+                                    <div class="format-buttons">
+                                        <button class="btn btn-sm btn-outline-primary active" data-format="text">文本</button>
+                                        <button class="btn btn-sm btn-outline-primary" data-format="formula">显示公式</button>
+                                        <button class="btn btn-sm btn-outline-primary" data-format="json">JSON</button>
+                                    </div>
+                                    <!-- 原始文本区域 -->
+                                    <textarea class="form-control" id="outputResult" rows="8" readonly style="display: block;"></textarea>
+                                    <!-- 格式化显示区域 -->
+                                    <div class="output-display" id="outputDisplay" style="display: none;"></div>
                                 </div>
                             </div>
                         </div>
@@ -117,6 +155,10 @@
             </div>
         </div>
     </div>
+
+    <!-- KaTeX JavaScript -->
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
 
     <script>
         const dropZone = document.getElementById('dropZone');
@@ -128,6 +170,7 @@
         const resultArea = document.getElementById('resultArea');
         const textResult = document.getElementById('textResult');
         const outputResult = document.getElementById('outputResult');
+        const outputDisplay = document.getElementById('outputDisplay');
         const textResultContainer = document.getElementById('textResultContainer');
         const outputResultContainer = document.getElementById('outputResultContainer');
         const placeholder = document.getElementById('placeholder');
@@ -135,6 +178,104 @@
         let currentImageData = null;
         let currentWorkflow = "{{.workflowKey}}";
         let workflowConfig = null;
+        let currentOutputText = '';
+        let currentFormat = 'text';
+
+        // 格式切换按钮事件处理
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('[data-format]')) {
+                const format = e.target.getAttribute('data-format');
+                switchFormat(format);
+                
+                // 更新按钮状态
+                document.querySelectorAll('[data-format]').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                e.target.classList.add('active');
+            }
+        });
+
+        // 切换显示格式
+        function switchFormat(format) {
+            currentFormat = format;
+            
+            if (!currentOutputText) return;
+            
+            switch (format) {
+                case 'text':
+                    outputResult.style.display = 'block';
+                    outputDisplay.style.display = 'none';
+                    break;
+                case 'formula':
+                    outputResult.style.display = 'none';
+                    outputDisplay.style.display = 'block';
+                    renderFormula(currentOutputText);
+                    break;
+                case 'json':
+                    outputResult.style.display = 'none';
+                    outputDisplay.style.display = 'block';
+                    renderJson(currentOutputText);
+                    break;
+            }
+        }
+
+        // 渲染数学公式
+        function renderFormula(text) {
+            outputDisplay.innerHTML = '';
+            outputDisplay.classList.remove('json-display');
+            
+            try {
+                // 创建一个容器来渲染公式
+                const container = document.createElement('div');
+                container.innerHTML = text;
+                outputDisplay.appendChild(container);
+                
+                // 使用KaTeX渲染数学公式
+                if (window.renderMathInElement) {
+                    renderMathInElement(container, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ],
+                        throwOnError: false
+                    });
+                } else {
+                    // 如果KaTeX还没加载完成，等待一下再渲染
+                    setTimeout(() => renderFormula(text), 100);
+                }
+            } catch (error) {
+                outputDisplay.innerHTML = '<div class="text-danger">公式渲染失败: ' + error.message + '</div><pre>' + text + '</pre>';
+            }
+        }
+
+        // 渲染JSON格式
+        function renderJson(text) {
+            outputDisplay.classList.add('json-display');
+            
+            try {
+                // 尝试解析为JSON
+                let jsonData;
+                try {
+                    jsonData = JSON.parse(text);
+                } catch (parseError) {
+                    // 如果不是有效的JSON，尝试提取可能的JSON部分
+                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        jsonData = JSON.parse(jsonMatch[0]);
+                    } else {
+                        throw new Error('无法解析为JSON格式');
+                    }
+                }
+                
+                // 格式化JSON
+                const formatted = JSON.stringify(jsonData, null, 2);
+                outputDisplay.textContent = formatted;
+            } catch (error) {
+                outputDisplay.innerHTML = '<div class="text-danger">JSON格式化失败: ' + error.message + '</div><pre>' + text + '</pre>';
+            }
+        }
 
         // 加载当前工作流配置
         async function loadWorkflowConfig() {
@@ -323,30 +464,47 @@
                     }
                     
                     // 处理输出结果
+                    let outputText = '';
                     if (data.output) {
-                        outputResult.value = data.output;
+                        outputText = data.output;
                     } else if (data.result) {
                         try {
                             const parsedResult = JSON.parse(data.result);
                             if (parsedResult && typeof parsedResult === 'object' && 'data' in parsedResult) {
-                                outputResult.value = parsedResult.data;
+                                outputText = parsedResult.data;
                             } else {
-                                outputResult.value = data.result;
+                                outputText = data.result;
                             }
                         } catch (parseError) {
-                            outputResult.value = data.result;
+                            outputText = data.result;
                         }
                     } else {
-                        outputResult.value = '处理完成，但没有返回结果。';
+                        outputText = '处理完成，但没有返回结果。';
                     }
+                    
+                    // 保存当前输出文本并应用格式
+                    currentOutputText = outputText;
+                    outputResult.value = outputText;
+                    
+                    // 重置格式为文本模式
+                    currentFormat = 'text';
+                    document.querySelectorAll('[data-format]').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    document.querySelector('[data-format="text"]').classList.add('active');
+                    outputResult.style.display = 'block';
+                    outputDisplay.style.display = 'none';
+                    
                 } else {
-                    outputResult.value = '错误: ' + (data.error || '处理失败');
+                    currentOutputText = '错误: ' + (data.error || '处理失败');
+                    outputResult.value = currentOutputText;
                     resultArea.style.display = 'block';
                     textResultContainer.style.display = 'none';
                     outputResultContainer.className = 'col-md-12';
                 }
             } catch (error) {
-                outputResult.value = '错误: ' + error.message;
+                currentOutputText = '错误: ' + error.message;
+                outputResult.value = currentOutputText;
                 resultArea.style.display = 'block';
                 textResultContainer.style.display = 'none';
                 outputResultContainer.className = 'col-md-12';
