@@ -203,8 +203,9 @@
             
             switch (format) {
                 case 'text':
-                    outputResult.style.display = 'block';
-                    outputDisplay.style.display = 'none';
+                    outputResult.style.display = 'none';
+                    outputDisplay.style.display = 'block';
+                    renderText(currentOutputText);
                     break;
                 case 'formula':
                     outputResult.style.display = 'none';
@@ -217,6 +218,32 @@
                     renderJson(currentOutputText);
                     break;
             }
+        }
+
+        // 渲染可编辑文本
+        function renderText(text) {
+            outputDisplay.innerHTML = '';
+            outputDisplay.classList.remove('json-display');
+            
+            // 创建可编辑的文本区域
+            const textArea = document.createElement('textarea');
+            textArea.className = 'form-control';
+            textArea.rows = 8;
+            textArea.value = text;
+            textArea.style.width = '100%';
+            textArea.style.height = '100%';
+            textArea.style.minHeight = '200px';
+            textArea.style.border = 'none';
+            textArea.style.outline = 'none';
+            textArea.style.resize = 'vertical';
+            textArea.style.background = 'transparent';
+            
+            // 当内容改变时更新 currentOutputText
+            textArea.addEventListener('input', (e) => {
+                currentOutputText = e.target.value;
+            });
+            
+            outputDisplay.appendChild(textArea);
         }
 
         // 渲染数学公式
@@ -255,25 +282,56 @@
             outputDisplay.classList.add('json-display');
             
             try {
-                // 尝试解析为JSON
                 let jsonData;
+                
+                // 第一步：处理可能的多重序列化
+                // 尝试直接解析整个文本
                 try {
                     jsonData = JSON.parse(text);
+                    
+                    // 检查解析结果是否还是一个JSON字符串（双重序列化的情况）
+                    if (typeof jsonData === 'string') {
+                        try {
+                            // 尝试再次解析
+                            jsonData = JSON.parse(jsonData);
+                        } catch (secondParseError) {
+                            // 如果第二次解析失败，保持第一次的结果
+                            // jsonData 保持为字符串
+                        }
+                    }
                 } catch (parseError) {
-                    // 如果不是有效的JSON，尝试提取可能的JSON部分
-                    const jsonMatch = text.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        jsonData = JSON.parse(jsonMatch[0]);
+                    // 如果整个文本不是有效JSON，尝试提取可能的JSON部分
+                    const jsonMatches = [
+                        text.match(/\{[\s\S]*\}/), // 匹配对象
+                        text.match(/\[[\s\S]*\]/), // 匹配数组
+                    ].filter(match => match !== null);
+                    
+                    if (jsonMatches.length > 0) {
+                        // 尝试解析找到的JSON片段
+                        let extractedJson = jsonMatches[0][0];
+                        jsonData = JSON.parse(extractedJson);
+                        
+                        // 同样检查是否需要二次解析
+                        if (typeof jsonData === 'string') {
+                            try {
+                                jsonData = JSON.parse(jsonData);
+                            } catch (secondParseError) {
+                                // 保持第一次解析的结果
+                            }
+                        }
                     } else {
-                        throw new Error('无法解析为JSON格式');
+                        // 如果没有找到JSON结构，尝试将文本作为字符串值处理
+                        jsonData = { "text": text };
                     }
                 }
                 
-                // 格式化JSON
+                // 第二步：格式化 - 将JavaScript对象重新序列化为格式化的JSON字符串
                 const formatted = JSON.stringify(jsonData, null, 2);
                 outputDisplay.textContent = formatted;
+                
             } catch (error) {
-                outputDisplay.innerHTML = '<div class="text-danger">JSON格式化失败: ' + error.message + '</div><pre>' + text + '</pre>';
+                // 如果所有尝试都失败，显示错误信息和原始文本
+                outputDisplay.innerHTML = '<div class="text-danger">JSON反序列化失败: ' + error.message + '</div><hr><div class="text-muted">原始文本:</div><pre>' + text + '</pre>';
             }
         }
 
@@ -492,8 +550,9 @@
                         btn.classList.remove('active');
                     });
                     document.querySelector('[data-format="text"]').classList.add('active');
-                    outputResult.style.display = 'block';
-                    outputDisplay.style.display = 'none';
+                    outputResult.style.display = 'none';
+                    outputDisplay.style.display = 'block';
+                    renderText(currentOutputText);
                     
                 } else {
                     currentOutputText = '错误: ' + (data.error || '处理失败');
@@ -501,6 +560,16 @@
                     resultArea.style.display = 'block';
                     textResultContainer.style.display = 'none';
                     outputResultContainer.className = 'col-md-12';
+                    
+                    // 重置格式为文本模式并渲染错误信息
+                    currentFormat = 'text';
+                    document.querySelectorAll('[data-format]').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    document.querySelector('[data-format="text"]').classList.add('active');
+                    outputResult.style.display = 'none';
+                    outputDisplay.style.display = 'block';
+                    renderText(currentOutputText);
                 }
             } catch (error) {
                 currentOutputText = '错误: ' + error.message;
@@ -508,6 +577,16 @@
                 resultArea.style.display = 'block';
                 textResultContainer.style.display = 'none';
                 outputResultContainer.className = 'col-md-12';
+                
+                // 重置格式为文本模式并渲染错误信息
+                currentFormat = 'text';
+                document.querySelectorAll('[data-format]').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelector('[data-format="text"]').classList.add('active');
+                outputResult.style.display = 'none';
+                outputDisplay.style.display = 'block';
+                renderText(currentOutputText);
             } finally {
                 loading.style.display = 'none';
                 processBtn.disabled = false;
