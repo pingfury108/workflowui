@@ -252,26 +252,90 @@
             outputDisplay.classList.remove('json-display');
             
             try {
-                // 创建一个容器来渲染公式
-                const container = document.createElement('div');
-                container.innerHTML = text;
-                outputDisplay.appendChild(container);
+                // 创建主容器
+                const mainContainer = document.createElement('div');
+                mainContainer.style.height = '100%';
                 
-                // 使用KaTeX渲染数学公式
-                if (window.renderMathInElement) {
-                    renderMathInElement(container, {
-                        delimiters: [
-                            {left: '$$', right: '$$', display: true},
-                            {left: '$', right: '$', display: false},
-                            {left: '\\(', right: '\\)', display: false},
-                            {left: '\\[', right: '\\]', display: true}
-                        ],
-                        throwOnError: false
-                    });
-                } else {
-                    // 如果KaTeX还没加载完成，等待一下再渲染
-                    setTimeout(() => renderFormula(text), 100);
+                // 创建编辑区域标题
+                const editTitle = document.createElement('div');
+                editTitle.className = 'small text-muted mb-2';
+                editTitle.textContent = 'LaTeX 源码编辑:';
+                
+                // 创建可编辑的LaTeX源码文本区域
+                const textArea = document.createElement('textarea');
+                textArea.className = 'form-control mb-3';
+                textArea.rows = 4;
+                textArea.value = text;
+                textArea.style.fontFamily = '"Courier New", monospace';
+                textArea.style.fontSize = '0.9em';
+                textArea.placeholder = '在此编辑LaTeX公式，支持 $...$ 和 $$...$$ 语法';
+                
+                // 创建预览区域标题
+                const previewTitle = document.createElement('div');
+                previewTitle.className = 'small text-muted mb-2';
+                previewTitle.textContent = '公式预览:';
+                
+                // 创建预览容器
+                const previewContainer = document.createElement('div');
+                previewContainer.style.border = '1px solid #dee2e6';
+                previewContainer.style.borderRadius = '0.375rem';
+                previewContainer.style.padding = '10px';
+                previewContainer.style.backgroundColor = 'white';
+                previewContainer.style.minHeight = '60px';
+                previewContainer.style.maxHeight = '200px';
+                previewContainer.style.overflowY = 'auto';
+                
+                // 渲染公式的函数
+                function renderPreview(latexText) {
+                    previewContainer.innerHTML = latexText;
+                    
+                    // 使用KaTeX渲染数学公式
+                    if (window.renderMathInElement) {
+                        renderMathInElement(previewContainer, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false},
+                                {left: '\\(', right: '\\)', display: false},
+                                {left: '\\[', right: '\\]', display: true}
+                            ],
+                            throwOnError: false,
+                            errorCallback: (msg, err) => {
+                                console.warn('KaTeX渲染警告:', msg);
+                            }
+                        });
+                    } else {
+                        // 如果KaTeX还没加载完成，等待一下再渲染
+                        setTimeout(() => renderPreview(latexText), 100);
+                        return;
+                    }
                 }
+                
+                // 防抖函数，避免频繁渲染
+                let renderTimeout;
+                function debouncedRender(latexText) {
+                    clearTimeout(renderTimeout);
+                    renderTimeout = setTimeout(() => {
+                        renderPreview(latexText);
+                    }, 300);
+                }
+                
+                // 当LaTeX源码改变时更新预览和 currentOutputText
+                textArea.addEventListener('input', (e) => {
+                    const newValue = e.target.value;
+                    currentOutputText = newValue;
+                    debouncedRender(newValue);
+                });
+                
+                // 组装界面
+                mainContainer.appendChild(editTitle);
+                mainContainer.appendChild(textArea);
+                mainContainer.appendChild(previewTitle);
+                mainContainer.appendChild(previewContainer);
+                outputDisplay.appendChild(mainContainer);
+                
+                // 初始渲染
+                renderPreview(text);
+                
             } catch (error) {
                 outputDisplay.innerHTML = '<div class="text-danger">公式渲染失败: ' + error.message + '</div><pre>' + text + '</pre>';
             }
@@ -279,7 +343,11 @@
 
         // 渲染JSON格式
         function renderJson(text) {
-            outputDisplay.classList.add('json-display');
+            outputDisplay.innerHTML = '';
+            outputDisplay.classList.remove('json-display');
+            
+            let formattedJson = '';
+            let isValidJson = false;
             
             try {
                 let jsonData;
@@ -326,13 +394,64 @@
                 }
                 
                 // 第二步：格式化 - 将JavaScript对象重新序列化为格式化的JSON字符串
-                const formatted = JSON.stringify(jsonData, null, 2);
-                outputDisplay.textContent = formatted;
+                formattedJson = JSON.stringify(jsonData, null, 2);
+                isValidJson = true;
                 
             } catch (error) {
-                // 如果所有尝试都失败，显示错误信息和原始文本
-                outputDisplay.innerHTML = '<div class="text-danger">JSON反序列化失败: ' + error.message + '</div><hr><div class="text-muted">原始文本:</div><pre>' + text + '</pre>';
+                // 如果所有尝试都失败，使用原始文本
+                formattedJson = text;
+                isValidJson = false;
             }
+            
+            // 创建可编辑的JSON文本区域
+            const textArea = document.createElement('textarea');
+            textArea.className = 'form-control';
+            textArea.rows = 12;
+            textArea.value = formattedJson;
+            textArea.style.width = '100%';
+            textArea.style.height = '100%';
+            textArea.style.minHeight = '200px';
+            textArea.style.border = 'none';
+            textArea.style.outline = 'none';
+            textArea.style.resize = 'vertical';
+            textArea.style.background = 'transparent';
+            textArea.style.fontFamily = '"Courier New", monospace';
+            textArea.style.fontSize = '0.9em';
+            
+            // 创建错误提示区域
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'text-danger small mt-1';
+            errorDiv.style.display = 'none';
+            
+            // 验证JSON格式的函数
+            function validateJson(jsonText) {
+                try {
+                    JSON.parse(jsonText);
+                    errorDiv.style.display = 'none';
+                    textArea.style.borderColor = '';
+                    return true;
+                } catch (error) {
+                    errorDiv.textContent = 'JSON格式错误: ' + error.message;
+                    errorDiv.style.display = 'block';
+                    textArea.style.borderColor = '#dc3545';
+                    return false;
+                }
+            }
+            
+            // 当内容改变时更新 currentOutputText 并验证JSON
+            textArea.addEventListener('input', (e) => {
+                const newValue = e.target.value;
+                currentOutputText = newValue;
+                validateJson(newValue);
+            });
+            
+            // 初始验证
+            if (!isValidJson) {
+                validateJson(formattedJson);
+            }
+            
+            outputDisplay.appendChild(textArea);
+            outputDisplay.appendChild(errorDiv);
         }
 
         // 加载当前工作流配置
