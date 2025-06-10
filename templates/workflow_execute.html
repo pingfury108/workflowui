@@ -393,7 +393,47 @@
                     }
                 }
                 
-                // 第二步：格式化 - 将JavaScript对象重新序列化为格式化的JSON字符串
+                // 第二步：对顶级字段进行排序（字符串类型在前，数组类型在后）
+                if (jsonData && typeof jsonData === 'object' && !Array.isArray(jsonData)) {
+                    const sortedJsonData = {};
+                    const keys = Object.keys(jsonData);
+                    
+                    // 按字段类型排序：字符串在前，数组在后，其他类型在中间
+                    const sortedKeys = keys.sort((a, b) => {
+                        const valueA = jsonData[a];
+                        const valueB = jsonData[b];
+                        const typeA = Array.isArray(valueA) ? 'array' : typeof valueA;
+                        const typeB = Array.isArray(valueB) ? 'array' : typeof valueB;
+                        
+                        // 定义类型优先级：string < number < boolean < object < array
+                        const typePriority = {
+                            'string': 1,
+                            'number': 2,
+                            'boolean': 3,
+                            'object': 4,
+                            'array': 5
+                        };
+                        
+                        const priorityA = typePriority[typeA] || 3;
+                        const priorityB = typePriority[typeB] || 3;
+                        
+                        if (priorityA !== priorityB) {
+                            return priorityA - priorityB;
+                        }
+                        
+                        // 如果类型相同，按字母顺序排序
+                        return a.localeCompare(b);
+                    });
+                    
+                    // 重新构建排序后的对象
+                    sortedKeys.forEach(key => {
+                        sortedJsonData[key] = jsonData[key];
+                    });
+                    
+                    jsonData = sortedJsonData;
+                }
+                
+                // 第三步：格式化 - 将JavaScript对象重新序列化为格式化的JSON字符串
                 formattedJson = JSON.stringify(jsonData, null, 2);
                 isValidJson = true;
                 
