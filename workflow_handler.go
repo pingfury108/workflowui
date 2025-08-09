@@ -28,8 +28,9 @@ type AppConfig struct {
 
 // WorkflowResponseData 工作流响应数据结构
 type WorkflowResponseData struct {
-	Text   string `json:"text"`
-	Output string `json:"output"`
+	Text   string      `json:"text"`
+	Output string      `json:"output"`
+	Result interface{} `json:"result,omitempty"`
 }
 
 // WorkflowHandler 工作流处理器
@@ -180,11 +181,19 @@ func (h *WorkflowHandler) ProcessWorkflow(c *gin.Context, workflowKey string) {
 		workflowData.Text = ""
 	}
 
+	// 如果Result字段为空，尝试解析整个响应数据
+	if workflowData.Result == nil {
+		var resultData interface{}
+		if err := json.Unmarshal([]byte(resp.Data), &resultData); err == nil {
+			workflowData.Result = resultData
+		}
+	}
+
 	// 返回结果
 	c.JSON(200, gin.H{
 		"text":   workflowData.Text,
 		"output": workflowData.Output,
-		"result": resp.Data,
+		"result": workflowData.Result,
 	})
 }
 

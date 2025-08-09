@@ -130,24 +130,8 @@
                         </div>
 
                         <div class="result-area" id="resultArea" style="display: none;">
-                            <div class="row">
-                                <div class="col-md-6" id="textResultContainer" style="display: none;">
-                                    <label for="textResult" class="form-label">识别内容：</label>
-                                    <textarea class="form-control" id="textResult" rows="8" readonly></textarea>
-                                </div>
-                                <div class="col-md-6" id="outputResultContainer">
-                                    <label for="outputResult" class="form-label">处理结果：</label>
-                                    <!-- 格式切换按钮 -->
-                                    <div class="format-buttons">
-                                        <button class="btn btn-sm btn-outline-primary active" data-format="text">文本</button>
-                                        <button class="btn btn-sm btn-outline-primary" data-format="formula">显示公式</button>
-                                        <button class="btn btn-sm btn-outline-primary" data-format="json">JSON</button>
-                                    </div>
-                                    <!-- 原始文本区域 -->
-                                    <textarea class="form-control" id="outputResult" rows="8" readonly style="display: block;"></textarea>
-                                    <!-- 格式化显示区域 -->
-                                    <div class="output-display" id="outputDisplay" style="display: none;"></div>
-                                </div>
+                            <div id="resultsContainer">
+                                <!-- 动态生成的结果区域 -->
                             </div>
                         </div>
                     </div>
@@ -168,11 +152,7 @@
         const loading = document.getElementById('loading');
         const loadingText = document.getElementById('loadingText');
         const resultArea = document.getElementById('resultArea');
-        const textResult = document.getElementById('textResult');
-        const outputResult = document.getElementById('outputResult');
-        const outputDisplay = document.getElementById('outputDisplay');
-        const textResultContainer = document.getElementById('textResultContainer');
-        const outputResultContainer = document.getElementById('outputResultContainer');
+        const resultsContainer = document.getElementById('resultsContainer');
         const placeholder = document.getElementById('placeholder');
         
         let currentImageData = null;
@@ -195,303 +175,152 @@
             }
         });
 
-        // 切换显示格式
-        function switchFormat(format) {
-            currentFormat = format;
+        // 渲染不同类型的结果
+        function renderResult(key, label, type, value) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'mb-4';
             
-            if (!currentOutputText) return;
+            const header = document.createElement('h5');
+            header.className = 'mb-3';
+            header.textContent = label;
             
-            switch (format) {
+            resultDiv.appendChild(header);
+            
+            switch (type) {
                 case 'text':
-                    outputResult.style.display = 'none';
-                    outputDisplay.style.display = 'block';
-                    renderText(currentOutputText);
+                    const textArea = document.createElement('textarea');
+                    textArea.className = 'form-control';
+                    textArea.rows = 8;
+                    textArea.readOnly = true;
+                    textArea.value = value || '';
+                    resultDiv.appendChild(textArea);
                     break;
-                case 'formula':
-                    outputResult.style.display = 'none';
-                    outputDisplay.style.display = 'block';
-                    renderFormula(currentOutputText);
-                    break;
-                case 'json':
-                    outputResult.style.display = 'none';
-                    outputDisplay.style.display = 'block';
-                    renderJson(currentOutputText);
-                    break;
-            }
-        }
-
-        // 渲染可编辑文本
-        function renderText(text) {
-            outputDisplay.innerHTML = '';
-            outputDisplay.classList.remove('json-display');
-            
-            // 创建可编辑的文本区域
-            const textArea = document.createElement('textarea');
-            textArea.className = 'form-control';
-            textArea.rows = 8;
-            textArea.value = text;
-            textArea.style.width = '100%';
-            textArea.style.height = '100%';
-            textArea.style.minHeight = '200px';
-            textArea.style.border = 'none';
-            textArea.style.outline = 'none';
-            textArea.style.resize = 'vertical';
-            textArea.style.background = 'transparent';
-            
-            // 当内容改变时更新 currentOutputText
-            textArea.addEventListener('input', (e) => {
-                currentOutputText = e.target.value;
-            });
-            
-            outputDisplay.appendChild(textArea);
-        }
-
-        // 渲染数学公式
-        function renderFormula(text) {
-            outputDisplay.innerHTML = '';
-            outputDisplay.classList.remove('json-display');
-            
-            try {
-                // 创建主容器
-                const mainContainer = document.createElement('div');
-                mainContainer.style.height = '100%';
-                
-                // 创建编辑区域标题
-                const editTitle = document.createElement('div');
-                editTitle.className = 'small text-muted mb-2';
-                editTitle.textContent = 'LaTeX 源码编辑:';
-                
-                // 创建可编辑的LaTeX源码文本区域
-                const textArea = document.createElement('textarea');
-                textArea.className = 'form-control mb-3';
-                textArea.rows = 4;
-                textArea.value = text;
-                textArea.style.fontFamily = '"Courier New", monospace';
-                textArea.style.fontSize = '0.9em';
-                textArea.placeholder = '在此编辑LaTeX公式，支持 $...$ 和 $$...$$ 语法';
-                
-                // 创建预览区域标题
-                const previewTitle = document.createElement('div');
-                previewTitle.className = 'small text-muted mb-2';
-                previewTitle.textContent = '公式预览:';
-                
-                // 创建预览容器
-                const previewContainer = document.createElement('div');
-                previewContainer.style.border = '1px solid #dee2e6';
-                previewContainer.style.borderRadius = '0.375rem';
-                previewContainer.style.padding = '10px';
-                previewContainer.style.backgroundColor = 'white';
-                previewContainer.style.minHeight = '60px';
-                previewContainer.style.maxHeight = '200px';
-                previewContainer.style.overflowY = 'auto';
-                
-                // 渲染公式的函数
-                function renderPreview(latexText) {
-                    previewContainer.innerHTML = latexText;
                     
-                    // 使用KaTeX渲染数学公式
-                    if (window.renderMathInElement) {
-                        renderMathInElement(previewContainer, {
-                            delimiters: [
-                                {left: '$$', right: '$$', display: true},
-                                {left: '$', right: '$', display: false},
-                                {left: '\\(', right: '\\)', display: false},
-                                {left: '\\[', right: '\\]', display: true}
-                            ],
-                            throwOnError: false,
-                            errorCallback: (msg, err) => {
-                                console.warn('KaTeX渲染警告:', msg);
-                            }
+                case 'list':
+                    const list = document.createElement('ul');
+                    list.className = 'list-group';
+                    
+                    if (Array.isArray(value)) {
+                        value.forEach(item => {
+                            const listItem = document.createElement('li');
+                            listItem.className = 'list-group-item';
+                            listItem.textContent = typeof item === 'object' ? JSON.stringify(item) : String(item);
+                            list.appendChild(listItem);
                         });
                     } else {
-                        // 如果KaTeX还没加载完成，等待一下再渲染
-                        setTimeout(() => renderPreview(latexText), 100);
-                        return;
+                        const listItem = document.createElement('li');
+                        listItem.className = 'list-group-item';
+                        listItem.textContent = '无数据';
+                        list.appendChild(listItem);
                     }
-                }
-                
-                // 防抖函数，避免频繁渲染
-                let renderTimeout;
-                function debouncedRender(latexText) {
-                    clearTimeout(renderTimeout);
-                    renderTimeout = setTimeout(() => {
-                        renderPreview(latexText);
-                    }, 300);
-                }
-                
-                // 当LaTeX源码改变时更新预览和 currentOutputText
-                textArea.addEventListener('input', (e) => {
-                    const newValue = e.target.value;
-                    currentOutputText = newValue;
-                    debouncedRender(newValue);
-                });
-                
-                // 组装界面
-                mainContainer.appendChild(editTitle);
-                mainContainer.appendChild(textArea);
-                mainContainer.appendChild(previewTitle);
-                mainContainer.appendChild(previewContainer);
-                outputDisplay.appendChild(mainContainer);
-                
-                // 初始渲染
-                renderPreview(text);
-                
-            } catch (error) {
-                outputDisplay.innerHTML = '<div class="text-danger">公式渲染失败: ' + error.message + '</div><pre>' + text + '</pre>';
+                    
+                    resultDiv.appendChild(list);
+                    break;
+                    
+                case 'list_text':
+                    const textList = document.createElement('ul');
+                    textList.className = 'list-group';
+                    
+                    if (Array.isArray(value)) {
+                        value.forEach(item => {
+                            const listItem = document.createElement('li');
+                            listItem.className = 'list-group-item';
+                            listItem.textContent = String(item);
+                            textList.appendChild(listItem);
+                        });
+                    } else {
+                        const listItem = document.createElement('li');
+                        listItem.className = 'list-group-item';
+                        listItem.textContent = '无数据';
+                        textList.appendChild(listItem);
+                    }
+                    
+                    resultDiv.appendChild(textList);
+                    break;
+                    
+                case 'list_image':
+                    const imageList = document.createElement('div');
+                    
+                    if (Array.isArray(value)) {
+                        value.forEach(item => {
+                            const imgContainer = document.createElement('div');
+                            imgContainer.className = 'mb-2';
+                            
+                            const img = document.createElement('img');
+                            img.src = String(item);
+                            img.className = 'img-fluid';
+                            img.alt = '列表图片';
+                            img.style.maxHeight = '200px';
+                            
+                            imgContainer.appendChild(img);
+                            imageList.appendChild(imgContainer);
+                        });
+                    } else {
+                        const placeholderText = document.createElement('p');
+                        placeholderText.className = 'text-muted';
+                        placeholderText.textContent = '无图片数据';
+                        imageList.appendChild(placeholderText);
+                    }
+                    
+                    resultDiv.appendChild(imageList);
+                    break;
+                    
+                default:
+                    const defaultTextArea = document.createElement('textarea');
+                    defaultTextArea.className = 'form-control';
+                    defaultTextArea.rows = 8;
+                    defaultTextArea.readOnly = true;
+                    defaultTextArea.value = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value || '');
+                    resultDiv.appendChild(defaultTextArea);
             }
+            
+            return resultDiv;
         }
 
-        // 渲染JSON格式
-        function renderJson(text) {
-            outputDisplay.innerHTML = '';
-            outputDisplay.classList.remove('json-display');
+        // 渲染所有结果
+        function renderAllResults(results) {
+            resultsContainer.innerHTML = '';
             
-            let formattedJson = '';
-            let isValidJson = false;
-            
-            try {
-                let jsonData;
-                
-                // 第一步：处理可能的多重序列化
-                // 尝试直接解析整个文本
-                try {
-                    jsonData = JSON.parse(text);
+            if (workflowConfig.results && workflowConfig.results.length > 0) {
+                // 根据配置渲染结果
+                workflowConfig.results.forEach(resultConfig => {
+                    const key = resultConfig.key;
+                    const label = resultConfig.label;
+                    const type = resultConfig.type;
+                    const defaultValue = resultConfig.defaultValue;
                     
-                    // 检查解析结果是否还是一个JSON字符串（双重序列化的情况）
-                    if (typeof jsonData === 'string') {
-                        try {
-                            // 尝试再次解析
-                            jsonData = JSON.parse(jsonData);
-                        } catch (secondParseError) {
-                            // 如果第二次解析失败，保持第一次的结果
-                            // jsonData 保持为字符串
-                        }
-                    }
-                } catch (parseError) {
-                    // 如果整个文本不是有效JSON，尝试提取可能的JSON部分
-                    const jsonMatches = [
-                        text.match(/\{[\s\S]*\}/), // 匹配对象
-                        text.match(/\[[\s\S]*\]/), // 匹配数组
-                    ].filter(match => match !== null);
+                    // 获取实际值
+                    let value = results[key];
                     
-                    if (jsonMatches.length > 0) {
-                        // 尝试解析找到的JSON片段
-                        let extractedJson = jsonMatches[0][0];
-                        jsonData = JSON.parse(extractedJson);
-                        
-                        // 同样检查是否需要二次解析
-                        if (typeof jsonData === 'string') {
-                            try {
-                                jsonData = JSON.parse(jsonData);
-                            } catch (secondParseError) {
-                                // 保持第一次解析的结果
+                    // 如果没有找到对应key的值，尝试使用默认值作为路径查找
+                    if (value === undefined && defaultValue) {
+                        // 简单路径查找 (支持 a.b.c 格式)
+                        const pathParts = defaultValue.split('.');
+                        let current = results;
+                        for (const part of pathParts) {
+                            if (current && typeof current === 'object' && part in current) {
+                                current = current[part];
+                            } else {
+                                current = undefined;
+                                break;
                             }
                         }
-                    } else {
-                        // 如果没有找到JSON结构，尝试将文本作为字符串值处理
-                        jsonData = { "text": text };
+                        value = current;
                     }
+                    
+                    const resultElement = renderResult(key, label, type, value);
+                    resultsContainer.appendChild(resultElement);
+                });
+            } else {
+                // 默认行为：显示text和output
+                if (results.text) {
+                    const textElement = renderResult('text', '识别内容', 'text', results.text);
+                    resultsContainer.appendChild(textElement);
                 }
                 
-                // 第二步：对顶级字段进行排序（字符串类型在前，数组类型在后）
-                if (jsonData && typeof jsonData === 'object' && !Array.isArray(jsonData)) {
-                    const sortedJsonData = {};
-                    const keys = Object.keys(jsonData);
-                    
-                    // 按字段类型排序：字符串在前，数组在后，其他类型在中间
-                    const sortedKeys = keys.sort((a, b) => {
-                        const valueA = jsonData[a];
-                        const valueB = jsonData[b];
-                        const typeA = Array.isArray(valueA) ? 'array' : typeof valueA;
-                        const typeB = Array.isArray(valueB) ? 'array' : typeof valueB;
-                        
-                        // 定义类型优先级：string < number < boolean < object < array
-                        const typePriority = {
-                            'string': 1,
-                            'number': 2,
-                            'boolean': 3,
-                            'object': 4,
-                            'array': 5
-                        };
-                        
-                        const priorityA = typePriority[typeA] || 3;
-                        const priorityB = typePriority[typeB] || 3;
-                        
-                        if (priorityA !== priorityB) {
-                            return priorityA - priorityB;
-                        }
-                        
-                        // 如果类型相同，按字母顺序排序
-                        return a.localeCompare(b);
-                    });
-                    
-                    // 重新构建排序后的对象
-                    sortedKeys.forEach(key => {
-                        sortedJsonData[key] = jsonData[key];
-                    });
-                    
-                    jsonData = sortedJsonData;
-                }
-                
-                // 第三步：格式化 - 将JavaScript对象重新序列化为格式化的JSON字符串
-                formattedJson = JSON.stringify(jsonData, null, 2);
-                isValidJson = true;
-                
-            } catch (error) {
-                // 如果所有尝试都失败，使用原始文本
-                formattedJson = text;
-                isValidJson = false;
+                const outputElement = renderResult('output', '处理结果', 'text', results.output || results.result);
+                resultsContainer.appendChild(outputElement);
             }
-            
-            // 创建可编辑的JSON文本区域
-            const textArea = document.createElement('textarea');
-            textArea.className = 'form-control';
-            textArea.rows = 12;
-            textArea.value = formattedJson;
-            textArea.style.width = '100%';
-            textArea.style.height = '100%';
-            textArea.style.minHeight = '200px';
-            textArea.style.border = 'none';
-            textArea.style.outline = 'none';
-            textArea.style.resize = 'vertical';
-            textArea.style.background = 'transparent';
-            textArea.style.fontFamily = '"Courier New", monospace';
-            textArea.style.fontSize = '0.9em';
-            
-            // 创建错误提示区域
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'text-danger small mt-1';
-            errorDiv.style.display = 'none';
-            
-            // 验证JSON格式的函数
-            function validateJson(jsonText) {
-                try {
-                    JSON.parse(jsonText);
-                    errorDiv.style.display = 'none';
-                    textArea.style.borderColor = '';
-                    return true;
-                } catch (error) {
-                    errorDiv.textContent = 'JSON格式错误: ' + error.message;
-                    errorDiv.style.display = 'block';
-                    textArea.style.borderColor = '#dc3545';
-                    return false;
-                }
-            }
-            
-            // 当内容改变时更新 currentOutputText 并验证JSON
-            textArea.addEventListener('input', (e) => {
-                const newValue = e.target.value;
-                currentOutputText = newValue;
-                validateJson(newValue);
-            });
-            
-            // 初始验证
-            if (!isValidJson) {
-                validateJson(formattedJson);
-            }
-            
-            outputDisplay.appendChild(textArea);
-            outputDisplay.appendChild(errorDiv);
         }
 
         // 加载当前工作流配置
@@ -670,82 +499,20 @@
                 if (response.ok) {
                     // 显示结果
                     resultArea.style.display = 'block';
-                    
-                    if (data.text && data.text.trim()) {
-                        textResultContainer.style.display = 'block';
-                        outputResultContainer.className = 'col-md-6';
-                        textResult.value = data.text;
-                    } else {
-                        textResultContainer.style.display = 'none';
-                        outputResultContainer.className = 'col-md-12';
-                    }
-                    
-                    // 处理输出结果
-                    let outputText = '';
-                    if (data.output) {
-                        outputText = data.output;
-                    } else if (data.result) {
-                        try {
-                            const parsedResult = JSON.parse(data.result);
-                            if (parsedResult && typeof parsedResult === 'object' && 'data' in parsedResult) {
-                                outputText = parsedResult.data;
-                            } else {
-                                outputText = data.result;
-                            }
-                        } catch (parseError) {
-                            outputText = data.result;
-                        }
-                    } else {
-                        outputText = '处理完成，但没有返回结果。';
-                    }
-                    
-                    // 保存当前输出文本并应用格式
-                    currentOutputText = outputText;
-                    outputResult.value = outputText;
-                    
-                    // 重置格式为文本模式
-                    currentFormat = 'text';
-                    document.querySelectorAll('[data-format]').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    document.querySelector('[data-format="text"]').classList.add('active');
-                    outputResult.style.display = 'none';
-                    outputDisplay.style.display = 'block';
-                    renderText(currentOutputText);
-                    
+                    renderAllResults(data);
                 } else {
-                    currentOutputText = '错误: ' + (data.error || '处理失败');
-                    outputResult.value = currentOutputText;
+                    // 显示错误信息
                     resultArea.style.display = 'block';
-                    textResultContainer.style.display = 'none';
-                    outputResultContainer.className = 'col-md-12';
-                    
-                    // 重置格式为文本模式并渲染错误信息
-                    currentFormat = 'text';
-                    document.querySelectorAll('[data-format]').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    document.querySelector('[data-format="text"]').classList.add('active');
-                    outputResult.style.display = 'none';
-                    outputDisplay.style.display = 'block';
-                    renderText(currentOutputText);
+                    const errorElement = renderResult('error', '错误信息', 'text', '错误: ' + (data.error || '处理失败'));
+                    resultsContainer.innerHTML = '';
+                    resultsContainer.appendChild(errorElement);
                 }
             } catch (error) {
-                currentOutputText = '错误: ' + error.message;
-                outputResult.value = currentOutputText;
+                // 显示错误信息
                 resultArea.style.display = 'block';
-                textResultContainer.style.display = 'none';
-                outputResultContainer.className = 'col-md-12';
-                
-                // 重置格式为文本模式并渲染错误信息
-                currentFormat = 'text';
-                document.querySelectorAll('[data-format]').forEach(btn => {
-                    btn.classList.remove('active');
-                });
-                document.querySelector('[data-format="text"]').classList.add('active');
-                outputResult.style.display = 'none';
-                outputDisplay.style.display = 'block';
-                renderText(currentOutputText);
+                const errorElement = renderResult('error', '错误信息', 'text', '错误: ' + error.message);
+                resultsContainer.innerHTML = '';
+                resultsContainer.appendChild(errorElement);
             } finally {
                 loading.style.display = 'none';
                 processBtn.disabled = false;

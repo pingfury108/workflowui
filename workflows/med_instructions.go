@@ -7,8 +7,22 @@ func GetMedInstructionsWorkflow() WorkflowConfig {
 		WorkflowID: "your_med_workflow_id_here",
 		AppID:      "your_app_id_here",
 		Parameters: []WorkflowParameterConfig{},
+		Results: []WorkflowResultConfig{
+			{
+				Key:          "text",
+				Label:        "识别内容",
+				Type:         "text",
+				DefaultValue: "text",
+			},
+			{
+				Key:          "output",
+				Label:        "处理结果",
+				Type:         "text",
+				DefaultValue: "output",
+			},
+		},
 	}
-} 
+}
 
 func init() {
 	workflows["med_instructions"] = GetMedInstructionsWorkflow()

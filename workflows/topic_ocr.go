@@ -23,8 +23,22 @@ func GetTopicOCRWorkflow() WorkflowConfig {
 				Placeholder: "可选，如：选择题、填空题等",
 			},
 		},
+		Results: []WorkflowResultConfig{
+			{
+				Key:          "text",
+				Label:        "识别内容",
+				Type:         "text",
+				DefaultValue: "text",
+			},
+			{
+				Key:          "output",
+				Label:        "处理结果",
+				Type:         "text",
+				DefaultValue: "output",
+			},
+		},
 	}
-} 
+}
 
 func init() {
 	workflows["topic_ocr"] = GetTopicOCRWorkflow()
