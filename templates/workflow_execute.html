@@ -30,6 +30,28 @@
             max-height: 300px;
             border-radius: 4px;
         }
+        /* 图片网格布局 */
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .image-grid img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .image-grid img:hover {
+            transform: scale(1.05);
+        }
+        /* 图片放大查看模态框 */
+        .modal-img {
+            cursor: pointer;
+        }
         .result-area {
             margin-top: 20px;
         }
@@ -139,9 +161,16 @@
         </div>
     </div>
 
-    <!-- KaTeX JavaScript -->
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
+    <!-- 图片放大查看模态框 -->
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <img id="modalImage" src="" class="img-fluid" alt="放大图片">
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const dropZone = document.getElementById('dropZone');
@@ -238,30 +267,37 @@
                     break;
                     
                 case 'list_image':
-                    const imageList = document.createElement('div');
+                    const imageGrid = document.createElement('div');
+                    imageGrid.className = 'image-grid';
                     
                     if (Array.isArray(value)) {
                         value.forEach(item => {
                             const imgContainer = document.createElement('div');
-                            imgContainer.className = 'mb-2';
                             
                             const img = document.createElement('img');
                             img.src = String(item);
-                            img.className = 'img-fluid';
-                            img.alt = '列表图片';
-                            img.style.maxHeight = '200px';
+                            img.className = 'modal-img';
+                            img.alt = '结果图片';
+                            
+                            // 添加点击事件，显示放大图片
+                            img.addEventListener('click', () => {
+                                const modalImage = document.getElementById('modalImage');
+                                modalImage.src = String(item);
+                                const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+                                modal.show();
+                            });
                             
                             imgContainer.appendChild(img);
-                            imageList.appendChild(imgContainer);
+                            imageGrid.appendChild(imgContainer);
                         });
                     } else {
                         const placeholderText = document.createElement('p');
                         placeholderText.className = 'text-muted';
                         placeholderText.textContent = '无图片数据';
-                        imageList.appendChild(placeholderText);
+                        imageGrid.appendChild(placeholderText);
                     }
                     
-                    resultDiv.appendChild(imageList);
+                    resultDiv.appendChild(imageGrid);
                     break;
                     
                 default:
@@ -387,7 +423,7 @@
                         // 使用textarea而不是input
                         input = document.createElement('textarea');
                         input.className = 'form-control';
-                        input.rows = 1; // 默认为1行
+                        input.rows = 3; // 默认为1行
                         if (param.placeholder) {
                             input.placeholder = param.placeholder;
                         }
@@ -524,11 +560,26 @@
             reader.onload = async (e) => {
                 currentImageData = e.target.result;
                 
-                // 显示图片
+                // 显示图片网格
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'image-grid';
+                
                 const img = document.createElement('img');
                 img.src = currentImageData;
+                img.className = 'modal-img';
+                img.alt = '上传的图片';
+                
+                // 添加点击事件，显示放大图片
+                img.addEventListener('click', () => {
+                    const modalImage = document.getElementById('modalImage');
+                    modalImage.src = currentImageData;
+                    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+                    modal.show();
+                });
+                
+                imgContainer.appendChild(img);
                 dropZone.innerHTML = '';
-                dropZone.appendChild(img);
+                dropZone.appendChild(imgContainer);
                 
                 // 检查必填字段状态
                 checkRequiredFields();
@@ -617,5 +668,19 @@
             loadWorkflowConfig();
         });
     </script>
+    
+    <!-- Bootstrap JS for modal -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 图片放大查看模态框 -->
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <img id="modalImage" src="" class="img-fluid" alt="放大图片">
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html> 
