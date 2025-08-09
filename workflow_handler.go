@@ -74,7 +74,7 @@ func (h *WorkflowHandler) ProcessWorkflow(c *gin.Context, workflowKey string) {
 	}
 
 	var request struct {
-		ImageData  string                 `json:"image_data" binding:"required"`
+		ImageData  string                 `json:"image_data"`
 		Parameters map[string]interface{} `json:"parameters,omitempty"`
 	}
 
@@ -86,68 +86,96 @@ func (h *WorkflowHandler) ProcessWorkflow(c *gin.Context, workflowKey string) {
 		return
 	}
 
-	// 从 base64 字符串中提取实际的图片数据
-	imageData := request.ImageData
-	if strings.Contains(imageData, "base64,") {
-		imageData = strings.Split(imageData, "base64,")[1]
+	// 检查工作流是否需要图片参数
+	needsImage := false
+	for _, param := range workflow.Parameters {
+		if param.Type == "image" {
+			needsImage = true
+			break
+		}
 	}
 
-	// 解码 base64 数据
-	imgBytes, err := base64.StdEncoding.DecodeString(imageData)
-	if err != nil {
+	// 如果工作流需要图片但没有提供，则返回错误
+	if needsImage && request.ImageData == "" {
 		c.JSON(400, gin.H{
-			"error": "无效的图片数据: " + err.Error(),
+			"error": "此工作流需要图片参数",
 		})
 		return
 	}
 
-	// 创建临时文件
-	tempFile, err := os.CreateTemp("", "image-*.png")
-	if err != nil {
-		c.JSON(500, gin.H{
-			"error": "创建临时文件失败: " + err.Error(),
-		})
-		return
-	}
-	defer os.Remove(tempFile.Name())
-	defer tempFile.Close()
+	var tempFile *os.File
+	var uploadResp *coze.UploadFilesResp
+	var imgBytes []byte
 
-	// 写入图片数据到临时文件
-	if _, err := tempFile.Write(imgBytes); err != nil {
-		c.JSON(500, gin.H{
-			"error": "写入临时文件失败: " + err.Error(),
-		})
-		return
-	}
-	tempFile.Close() // 关闭文件以确保数据被写入
+	// 只有在提供了图片数据时才处理图片
+	if request.ImageData != "" {
+		// 从 base64 字符串中提取实际的图片数据
+		imageData := request.ImageData
+		if strings.Contains(imageData, "base64,") {
+			imageData = strings.Split(imageData, "base64,")[1]
+		}
 
-	// 上传文件到 Coze
-	file, err := os.Open(tempFile.Name())
-	if err != nil {
-		c.JSON(500, gin.H{
-			"error": "打开临时文件失败: " + err.Error(),
-		})
-		return
-	}
-	defer file.Close()
+		// 解码 base64 数据
+		var err error
+		imgBytes, err = base64.StdEncoding.DecodeString(imageData)
+		if err != nil {
+			c.JSON(400, gin.H{
+				"error": "无效的图片数据: " + err.Error(),
+			})
+			return
+		}
 
-	uploadReq := &coze.UploadFilesReq{
-		File: file,
-	}
-	uploadResp, err := h.cozeClient.Files.Upload(c.Request.Context(), uploadReq)
-	if err != nil {
-		c.JSON(500, gin.H{
-			"error": "上传文件失败: " + err.Error(),
-		})
-		return
+		// 创建临时文件
+		tempFile, err = os.CreateTemp("", "image-*.png")
+		if err != nil {
+			c.JSON(500, gin.H{
+				"error": "创建临时文件失败: " + err.Error(),
+			})
+			return
+		}
+		defer os.Remove(tempFile.Name())
+		defer tempFile.Close()
+
+		// 写入图片数据到临时文件
+		if _, err := tempFile.Write(imgBytes); err != nil {
+			c.JSON(500, gin.H{
+				"error": "写入临时文件失败: " + err.Error(),
+			})
+			return
+		}
+		tempFile.Close() // 关闭文件以确保数据被写入
+
+		// 上传文件到 Coze
+		file, err := os.Open(tempFile.Name())
+		if err != nil {
+			c.JSON(500, gin.H{
+				"error": "打开临时文件失败: " + err.Error(),
+			})
+			return
+		}
+		defer file.Close()
+
+		uploadReq := &coze.UploadFilesReq{
+			File: file,
+		}
+		uploadResp, err = h.cozeClient.Files.Upload(c.Request.Context(), uploadReq)
+		if err != nil {
+			c.JSON(500, gin.H{
+				"error": "上传文件失败: " + err.Error(),
+			})
+			return
+		}
 	}
 
 	// 构建工作流参数
-	data := map[string]any{
-		"img": map[string]any{
+	data := make(map[string]any)
+
+	// 只有在上传了图片时才添加图片参数
+	if uploadResp != nil {
+		data["img"] = map[string]any{
 			"type":    "image",
 			"file_id": uploadResp.FileInfo.ID,
-		},
+		}
 	}
 
 	// 添加额外参数
@@ -189,12 +217,8 @@ func (h *WorkflowHandler) ProcessWorkflow(c *gin.Context, workflowKey string) {
 		}
 	}
 
-	// 返回结果
-	c.JSON(200, gin.H{
-		"text":   workflowData.Text,
-		"output": workflowData.Output,
-		"result": workflowData.Result,
-	})
+	// 直接返回result的内容，不再包装一层
+	c.JSON(200, workflowData.Result)
 }
 
 // registerWorkflowRoutes 注册工作流路由

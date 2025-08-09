@@ -384,9 +384,10 @@
                             input.appendChild(optionElement);
                         });
                     } else {
-                        input = document.createElement('input');
-                        input.type = 'text';
+                        // 使用textarea而不是input
+                        input = document.createElement('textarea');
                         input.className = 'form-control';
+                        input.rows = 1; // 默认为1行
                         if (param.placeholder) {
                             input.placeholder = param.placeholder;
                         }
@@ -424,6 +425,7 @@
         function checkRequiredFields() {
             let allRequiredFilled = true;
             let hasImageParameter = false;
+            let hasRequiredTextParameter = false;
             
             if (workflowConfig.parameters) {
                 // 检查是否有图片参数
@@ -433,9 +435,12 @@
                 for (const param of workflowConfig.parameters) {
                     if (param.type !== 'image') {
                         const input = document.getElementById(param.key);
-                        if (param.required && (!input || !input.value.trim())) {
-                            allRequiredFilled = false;
-                            break;
+                        if (param.required) {
+                            hasRequiredTextParameter = true;
+                            if (!input || !input.value.trim()) {
+                                allRequiredFilled = false;
+                                break;
+                            }
                         }
                     }
                 }
@@ -452,7 +457,13 @@
                 return;
             }
             
-            processBtn.disabled = !allRequiredFilled;
+            // 如果有必需的文本参数或图片参数，根据检查结果设置按钮状态
+            if (hasRequiredTextParameter || hasImageParameter) {
+                processBtn.disabled = !allRequiredFilled;
+            } else {
+                // 如果没有必需的参数，启用按钮
+                processBtn.disabled = false;
+            }
         }
 
         // 处理粘贴事件
@@ -527,7 +538,7 @@
 
         // 处理工作流
         async function processWorkflow() {
-            if (!currentWorkflow || !currentImageData) return;
+            if (!currentWorkflow) return;
             
             // 显示加载动画
             loading.style.display = 'block';
@@ -539,12 +550,14 @@
             // 收集参数
             const parameters = {};
             const imageParameters = [];
+            let hasImageParameter = false;
             
             if (workflowConfig.parameters) {
                 workflowConfig.parameters.forEach(param => {
                     if (param.type === 'image') {
                         // 图片参数特殊处理
                         imageParameters.push(param.key);
+                        hasImageParameter = true;
                     } else {
                         // 普通参数处理
                         const input = document.getElementById(param.key);
@@ -561,7 +574,7 @@
             };
             
             // 如果有图片参数且已上传图片，则添加图片数据
-            if (imageParameters.length > 0 && currentImageData) {
+            if (hasImageParameter && imageParameters.length > 0 && currentImageData) {
                 requestData.image_data = currentImageData;
             }
 
