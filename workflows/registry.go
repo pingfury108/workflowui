@@ -13,7 +13,7 @@ type WorkflowConfig struct {
 type WorkflowParameterConfig struct {
 	Key          string   `json:"key"`
 	Label        string   `json:"label"`
-	Type         string   `json:"type"` // text, select
+	Type         string   `json:"type"` // text, select, image
 	Required     bool     `json:"required"`
 	Placeholder  string   `json:"placeholder,omitempty"`
 	Options      []string `json:"options,omitempty"` // for select type

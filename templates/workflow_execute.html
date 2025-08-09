@@ -105,7 +105,7 @@
                         <h2 class="workflow-title text-center">{{.workflowName}}</h2>
                         
                         <!-- 图片上传区域 -->
-                        <div class="drop-zone" id="dropZone">
+                        <div class="drop-zone" id="dropZone" style="display: none;">
                             <div id="placeholder">
                                 <p class="mb-2">拖放图片到这里</p>
                                 <p class="text-muted small">或使用 Ctrl+V 粘贴图片</p>
@@ -114,7 +114,6 @@
                         
                         <!-- 动态参数表单 -->
                         <div class="parameter-section" id="parameterSection" style="display: none;">
-                            <h5>参数设置</h5>
                             <div id="parametersContainer"></div>
                         </div>
                         
@@ -341,76 +340,132 @@
 
         function generateParameterForm(parameters) {
             parametersContainer.innerHTML = '';
+            dropZone.style.display = 'none';
+            processBtn.disabled = true;
             
-            if (parameters.length === 0) {
+            // 检查是否有非图片类型的参数
+            const nonImageParameters = parameters.filter(param => param.type !== 'image');
+            
+            if (nonImageParameters.length === 0) {
                 parameterSection.style.display = 'none';
+                // 没有参数时启用处理按钮
+                processBtn.disabled = false;
+            } else {
+                parameterSection.style.display = 'block';
+                
+                nonImageParameters.forEach(param => {
+                    const div = document.createElement('div');
+                    div.className = 'mb-3';
+                    
+                    const label = document.createElement('label');
+                    label.className = 'form-label';
+                    label.htmlFor = param.key;
+                    label.textContent = param.label + (param.required ? ' *' : '');
+                    
+                    let input;
+                    if (param.type === 'select') {
+                        input = document.createElement('select');
+                        input.className = 'form-select';
+                        
+                        if (!param.required) {
+                            const defaultOption = document.createElement('option');
+                            defaultOption.value = '';
+                            defaultOption.textContent = '请选择...';
+                            input.appendChild(defaultOption);
+                        }
+                        
+                        param.options.forEach(option => {
+                            const optionElement = document.createElement('option');
+                            optionElement.value = option;
+                            optionElement.textContent = option;
+                            if (option === param.default_value) {
+                                optionElement.selected = true;
+                            }
+                            input.appendChild(optionElement);
+                        });
+                    } else {
+                        input = document.createElement('input');
+                        input.type = 'text';
+                        input.className = 'form-control';
+                        if (param.placeholder) {
+                            input.placeholder = param.placeholder;
+                        }
+                        if (param.default_value) {
+                            input.value = param.default_value;
+                        }
+                    }
+                    
+                    input.id = param.key;
+                    input.name = param.key;
+                    if (param.required) {
+                        input.required = true;
+                    }
+                    
+                    // 为输入框添加事件监听器，检查是否所有必填字段都已填写
+                    input.addEventListener('input', checkRequiredFields);
+                    
+                    div.appendChild(label);
+                    div.appendChild(input);
+                    parametersContainer.appendChild(div);
+                });
+            }
+            
+            // 检查是否有图片类型的参数
+            const hasImageParameter = parameters.some(param => param.type === 'image');
+            if (hasImageParameter) {
+                dropZone.style.display = 'flex';
+            }
+            
+            // 检查必填字段状态
+            checkRequiredFields();
+        }
+
+        // 检查必填字段是否都已填写
+        function checkRequiredFields() {
+            let allRequiredFilled = true;
+            let hasImageParameter = false;
+            
+            if (workflowConfig.parameters) {
+                // 检查是否有图片参数
+                hasImageParameter = workflowConfig.parameters.some(param => param.type === 'image');
+                
+                // 检查文本参数
+                for (const param of workflowConfig.parameters) {
+                    if (param.type !== 'image') {
+                        const input = document.getElementById(param.key);
+                        if (param.required && (!input || !input.value.trim())) {
+                            allRequiredFilled = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // 如果有图片参数，还需要检查图片是否已上传
+            if (hasImageParameter && !currentImageData) {
+                allRequiredFilled = false;
+            }
+            
+            // 如果没有参数，始终启用按钮
+            if (!workflowConfig.parameters || workflowConfig.parameters.length === 0) {
+                processBtn.disabled = false;
                 return;
             }
             
-            parameterSection.style.display = 'block';
-            
-            parameters.forEach(param => {
-                const div = document.createElement('div');
-                div.className = 'mb-3';
-                
-                const label = document.createElement('label');
-                label.className = 'form-label';
-                label.htmlFor = param.key;
-                label.textContent = param.label + (param.required ? ' *' : '');
-                
-                let input;
-                if (param.type === 'select') {
-                    input = document.createElement('select');
-                    input.className = 'form-select';
-                    
-                    if (!param.required) {
-                        const defaultOption = document.createElement('option');
-                        defaultOption.value = '';
-                        defaultOption.textContent = '请选择...';
-                        input.appendChild(defaultOption);
-                    }
-                    
-                    param.options.forEach(option => {
-                        const optionElement = document.createElement('option');
-                        optionElement.value = option;
-                        optionElement.textContent = option;
-                        if (option === param.default_value) {
-                            optionElement.selected = true;
-                        }
-                        input.appendChild(optionElement);
-                    });
-                } else {
-                    input = document.createElement('input');
-                    input.type = 'text';
-                    input.className = 'form-control';
-                    if (param.placeholder) {
-                        input.placeholder = param.placeholder;
-                    }
-                    if (param.default_value) {
-                        input.value = param.default_value;
-                    }
-                }
-                
-                input.id = param.key;
-                input.name = param.key;
-                if (param.required) {
-                    input.required = true;
-                }
-                
-                div.appendChild(label);
-                div.appendChild(input);
-                parametersContainer.appendChild(div);
-            });
+            processBtn.disabled = !allRequiredFilled;
         }
 
         // 处理粘贴事件
         document.addEventListener('paste', async (e) => {
-            const items = e.clipboardData.items;
-            for (const item of items) {
-                if (item.type.startsWith('image/')) {
-                    const file = item.getAsFile();
-                    await previewImage(file);
-                    break;
+            // 只有当图片上传区域可见时才处理粘贴事件
+            if (dropZone.style.display !== 'none') {
+                const items = e.clipboardData.items;
+                for (const item of items) {
+                    if (item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        await previewImage(file);
+                        break;
+                    }
                 }
             }
         });
@@ -437,7 +492,17 @@
 
         // 处理按钮点击事件
         processBtn.addEventListener('click', async () => {
-            if (currentImageData && currentWorkflow) {
+            // 检查是否有图片类型的参数
+            const hasImageParameter = workflowConfig.parameters && 
+                workflowConfig.parameters.some(param => param.type === 'image');
+            
+            // 如果有图片参数，需要确保已上传图片
+            if (hasImageParameter && !currentImageData) {
+                alert('请上传图片');
+                return;
+            }
+            
+            if ((currentImageData || !hasImageParameter) && currentWorkflow) {
                 await processWorkflow();
             }
         });
@@ -454,8 +519,8 @@
                 dropZone.innerHTML = '';
                 dropZone.appendChild(img);
                 
-                // 启用处理按钮
-                processBtn.disabled = false;
+                // 检查必填字段状态
+                checkRequiredFields();
             };
             reader.readAsDataURL(file);
         }
@@ -473,13 +538,31 @@
             
             // 收集参数
             const parameters = {};
+            const imageParameters = [];
+            
             if (workflowConfig.parameters) {
                 workflowConfig.parameters.forEach(param => {
-                    const input = document.getElementById(param.key);
-                    if (input && input.value.trim()) {
-                        parameters[param.key] = input.value.trim();
+                    if (param.type === 'image') {
+                        // 图片参数特殊处理
+                        imageParameters.push(param.key);
+                    } else {
+                        // 普通参数处理
+                        const input = document.getElementById(param.key);
+                        if (input && input.value.trim()) {
+                            parameters[param.key] = input.value.trim();
+                        }
                     }
                 });
+            }
+
+            // 构建请求数据
+            const requestData = {
+                parameters: parameters
+            };
+            
+            // 如果有图片参数且已上传图片，则添加图片数据
+            if (imageParameters.length > 0 && currentImageData) {
+                requestData.image_data = currentImageData;
             }
 
             try {
@@ -488,10 +571,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        image_data: currentImageData,
-                        parameters: parameters
-                    })
+                    body: JSON.stringify(requestData)
                 });
 
                 const data = await response.json();
