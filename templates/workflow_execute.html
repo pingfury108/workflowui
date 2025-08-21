@@ -248,9 +248,10 @@
                 case 'text':
                     const textArea = document.createElement('textarea');
                     textArea.className = 'form-control';
-                    textArea.rows = 8;
                     textArea.readOnly = true;
                     textArea.value = value || '';
+                    textArea.setAttribute('data-min-rows', '5');
+                    textArea.setAttribute('data-max-rows', '15');
                     resultDiv.appendChild(textArea);
                     break;
                     
@@ -278,6 +279,8 @@
                     latexSource.className = 'latex-source';
                     latexSource.value = value || '';
                     latexSource.readOnly = true;
+                    latexSource.setAttribute('data-min-rows', '5');
+                    latexSource.setAttribute('data-max-rows', '15');
                     
                     const latexDisplay = document.createElement('div');
                     latexDisplay.className = 'latex-display';
@@ -371,9 +374,10 @@
                 default:
                     const defaultTextArea = document.createElement('textarea');
                     defaultTextArea.className = 'form-control';
-                    defaultTextArea.rows = 8;
                     defaultTextArea.readOnly = true;
                     defaultTextArea.value = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value || '');
+                    defaultTextArea.setAttribute('data-min-rows', '5');
+                    defaultTextArea.setAttribute('data-max-rows', '15');
                     resultDiv.appendChild(defaultTextArea);
             }
             
@@ -512,6 +516,9 @@
                 const outputElement = renderResult('output', '处理结果', 'text', results.output || results.result);
                 resultsContainer.appendChild(outputElement);
             }
+            
+            // 渲染完成后调整textarea高度
+            adjustTextareaHeightsInResults();
         }
 
         // 加载当前工作流配置
@@ -579,13 +586,17 @@
                         // 使用textarea而不是input
                         input = document.createElement('textarea');
                         input.className = 'form-control';
-                        input.rows = 3; // 默认为1行
+                        input.rows = 3; // 默认为3行
                         if (param.placeholder) {
                             input.placeholder = param.placeholder;
                         }
                         if (param.default_value) {
                             input.value = param.default_value;
                         }
+                        
+                        // 添加自动调整高度的属性
+                        input.setAttribute('data-min-rows', '3');
+                        input.setAttribute('data-max-rows', '10');
                     }
                     
                     input.id = param.key;
@@ -611,6 +622,9 @@
             
             // 检查必填字段状态
             checkRequiredFields();
+            
+            // 为新创建的textarea设置自动调整功能
+            setupAutoResizeTextareas();
         }
 
         // 检查必填字段是否都已填写
@@ -822,6 +836,9 @@
         // 页面加载时初始化
         document.addEventListener('DOMContentLoaded', () => {
             loadWorkflowConfig();
+            
+            // 设置所有textarea的自动调整功能
+            setupAutoResizeTextareas();
         });
     </script>
     
@@ -830,6 +847,72 @@
     
     <!-- Bootstrap JS for modal -->
     <script src="/public/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // 自动调整textarea高度的函数
+        function autoResizeTextarea(textarea) {
+            if (!textarea) return;
+            
+            // 重置高度以获取正确的scrollHeight
+            textarea.style.height = 'auto';
+            
+            // 计算需要的高度（考虑padding和边框）
+            const newHeight = textarea.scrollHeight;
+            const minRows = textarea.getAttribute('data-min-rows') || 3;
+            const maxRows = textarea.getAttribute('data-max-rows') || 20;
+            
+            // 计算行高
+            const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight) || 20;
+            const minHeight = lineHeight * minRows;
+            const maxHeight = lineHeight * maxRows;
+            
+            // 设置高度，确保在合理范围内
+            const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
+            textarea.style.height = finalHeight + 'px';
+        }
+
+        // 为所有需要自动调整的textarea添加事件监听
+        function setupAutoResizeTextareas() {
+            // 选择器：所有需要自动调整的textarea
+            const textareas = document.querySelectorAll('textarea.form-control, textarea.latex-source');
+            
+            textareas.forEach(textarea => {
+                // 排除用户手动设置高度的textarea
+                if (!textarea.hasAttribute('data-no-auto-resize')) {
+                    // 初始调整
+                    autoResizeTextarea(textarea);
+                    
+                    // 监听输入事件
+                    textarea.addEventListener('input', function() {
+                        autoResizeTextarea(this);
+                    });
+                    
+                    // 监听内容变化（包括通过JavaScript设置的内容）
+                    const observer = new MutationObserver(function() {
+                        autoResizeTextarea(textarea);
+                    });
+                    
+                    observer.observe(textarea, {
+                        attributes: true,
+                        attributeFilter: ['value'],
+                        childList: false,
+                        subtree: false
+                    });
+                }
+            });
+        }
+
+        // 在渲染结果后自动调整textarea高度
+        function adjustTextareaHeightsInResults() {
+            // 延迟执行，确保DOM已更新
+            setTimeout(() => {
+                const resultTextareas = document.querySelectorAll('#resultsContainer textarea');
+                resultTextareas.forEach(textarea => {
+                    autoResizeTextarea(textarea);
+                });
+            }, 100);
+        }
+    </script>
     
     <!-- 图片放大查看模态框 -->
     <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
