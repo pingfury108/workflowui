@@ -6,7 +6,7 @@
     <title>{{.workflowName}} - 智能工作流处理平台</title>
     <link href="/public/bootstrap.min.css" rel="stylesheet">
     <!-- KaTeX CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
+    <link href="/public/katex.min.css" rel="stylesheet">
     <style>
         .drop-zone {
             border: 2px dashed #ccc;
@@ -107,6 +107,36 @@
             font-family: 'Courier New', monospace;
             white-space: pre-wrap;
             font-size: 0.9em;
+        }
+        .latex-container {
+            position: relative;
+            margin: 15px 0;
+        }
+        .latex-toolbar {
+            margin-bottom: 10px;
+        }
+        .latex-display {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            min-height: 100px;
+        }
+        .latex-source {
+            width: 100%;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            min-height: 100px;
+            resize: vertical;
+        }
+        .latex-source-mode .latex-display {
+            display: none;
+        }
+        .latex-display-mode .latex-source {
+            display: none;
         }
     </style>
 </head>
@@ -224,6 +254,44 @@
                     resultDiv.appendChild(textArea);
                     break;
                     
+                case 'latex_text':
+                    const latexContainer = document.createElement('div');
+                    latexContainer.className = 'latex-container latex-source-mode';
+                    
+                    const latexToolbar = document.createElement('div');
+                    latexToolbar.className = 'latex-toolbar';
+                    
+                    const sourceBtn = document.createElement('button');
+                    sourceBtn.className = 'btn btn-sm btn-outline-primary active';
+                    sourceBtn.textContent = '源码模式';
+                    sourceBtn.onclick = () => switchLatexMode(latexContainer, 'source');
+                    
+                    const displayBtn = document.createElement('button');
+                    displayBtn.className = 'btn btn-sm btn-outline-primary ms-2';
+                    displayBtn.textContent = '显示模式';
+                    displayBtn.onclick = () => switchLatexMode(latexContainer, 'display');
+                    
+                    latexToolbar.appendChild(sourceBtn);
+                    latexToolbar.appendChild(displayBtn);
+                    
+                    const latexSource = document.createElement('textarea');
+                    latexSource.className = 'latex-source';
+                    latexSource.value = value || '';
+                    latexSource.readOnly = true;
+                    
+                    const latexDisplay = document.createElement('div');
+                    latexDisplay.className = 'latex-display';
+                    
+                    latexContainer.appendChild(latexToolbar);
+                    latexContainer.appendChild(latexSource);
+                    latexContainer.appendChild(latexDisplay);
+                    
+                    // 初始渲染
+                    renderLatex(latexDisplay, value || '');
+                    
+                    resultDiv.appendChild(latexContainer);
+                    break;
+                    
                 case 'list':
                     const list = document.createElement('ul');
                     list.className = 'list-group';
@@ -310,6 +378,94 @@
             }
             
             return resultDiv;
+        }
+
+        // LaTeX渲染相关函数
+        function switchLatexMode(container, mode) {
+            const buttons = container.querySelectorAll('.latex-toolbar .btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            if (mode === 'source') {
+                container.className = 'latex-container latex-source-mode';
+                container.querySelector('.latex-toolbar .btn:first-child').classList.add('active');
+            } else {
+                container.className = 'latex-container latex-display-mode';
+                container.querySelector('.latex-toolbar .btn:last-child').classList.add('active');
+                
+                // 重新渲染LaTeX
+                const sourceText = container.querySelector('.latex-source').value;
+                const displayDiv = container.querySelector('.latex-display');
+                renderLatex(displayDiv, sourceText);
+            }
+        }
+
+        function renderLatex(element, latexText) {
+            if (!latexText.trim()) {
+                element.innerHTML = '<p class="text-muted">无内容</p>';
+                return;
+            }
+
+            try {
+                // 清空现有内容
+                element.innerHTML = '';
+                
+                // 使用KaTeX渲染LaTeX
+                if (window.katex) {
+                    // 检查是否包含显示数学模式（$$...$$ 或 \[...\]）
+                    const displayMathRegex = /\$\$([^$]+)\$\$|\\\[([^\]]+)\\\]/g;
+                    const inlineMathRegex = /\$([^$]+)\$|\\\(([^)]+)\\\)/g;
+                    
+                    let content = latexText;
+                    let parts = [];
+                    let lastIndex = 0;
+                    
+                    // 处理显示数学
+                    content = content.replace(displayMathRegex, (match, display1, display2) => {
+                        const mathText = display1 || display2;
+                        try {
+                            return katex.renderToString(mathText.trim(), {
+                                displayMode: true,
+                                throwOnError: false
+                            });
+                        } catch (e) {
+                            return `<span class="text-danger">[公式错误: ${e.message}]</span>`;
+                        }
+                    });
+                    
+                    // 处理行内数学
+                    content = content.replace(inlineMathRegex, (match, inline1, inline2) => {
+                        const mathText = inline1 || inline2;
+                        try {
+                            return katex.renderToString(mathText.trim(), {
+                                displayMode: false,
+                                throwOnError: false
+                            });
+                        } catch (e) {
+                            return `<span class="text-danger">[公式错误: ${e.message}]</span>`;
+                        }
+                    });
+                    
+                    // 如果不是数学公式，尝试直接渲染
+                    if (!displayMathRegex.test(latexText) && !inlineMathRegex.test(latexText)) {
+                        try {
+                            const rendered = katex.renderToString(latexText.trim(), {
+                                displayMode: true,
+                                throwOnError: false
+                            });
+                            element.innerHTML = rendered;
+                        } catch (e) {
+                            // 如果不是有效的LaTeX，按普通文本显示
+                            element.innerHTML = `<pre>${latexText}</pre>`;
+                        }
+                    } else {
+                        element.innerHTML = content;
+                    }
+                } else {
+                    element.innerHTML = '<p class="text-danger">KaTeX库未加载</p>';
+                }
+            } catch (error) {
+                element.innerHTML = `<p class="text-danger">渲染错误: ${error.message}</p>`;
+            }
         }
 
         // 渲染所有结果
@@ -669,8 +825,11 @@
         });
     </script>
     
+    <!-- KaTeX JS -->
+    <script src="/public/katex.min.js"></script>
+    
     <!-- Bootstrap JS for modal -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/public/bootstrap.bundle.min.js"></script>
     
     <!-- 图片放大查看模态框 -->
     <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
