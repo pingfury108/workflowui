@@ -257,23 +257,23 @@
                     
                 case 'latex_text':
                     const latexContainer = document.createElement('div');
-                    latexContainer.className = 'latex-container latex-source-mode';
+                    latexContainer.className = 'latex-container latex-display-mode';
                     
                     const latexToolbar = document.createElement('div');
                     latexToolbar.className = 'latex-toolbar';
                     
-                    const sourceBtn = document.createElement('button');
-                    sourceBtn.className = 'btn btn-sm btn-outline-primary active';
-                    sourceBtn.textContent = '源码模式';
-                    sourceBtn.onclick = () => switchLatexMode(latexContainer, 'source');
-                    
                     const displayBtn = document.createElement('button');
-                    displayBtn.className = 'btn btn-sm btn-outline-primary ms-2';
+                    displayBtn.className = 'btn btn-sm btn-outline-primary active';
                     displayBtn.textContent = '显示模式';
                     displayBtn.onclick = () => switchLatexMode(latexContainer, 'display');
                     
-                    latexToolbar.appendChild(sourceBtn);
+                    const sourceBtn = document.createElement('button');
+                    sourceBtn.className = 'btn btn-sm btn-outline-primary ms-2';
+                    sourceBtn.textContent = '源码模式';
+                    sourceBtn.onclick = () => switchLatexMode(latexContainer, 'source');
+                    
                     latexToolbar.appendChild(displayBtn);
+                    latexToolbar.appendChild(sourceBtn);
                     
                     const latexSource = document.createElement('textarea');
                     latexSource.className = 'latex-source';
@@ -391,10 +391,10 @@
             
             if (mode === 'source') {
                 container.className = 'latex-container latex-source-mode';
-                container.querySelector('.latex-toolbar .btn:first-child').classList.add('active');
+                container.querySelector('.latex-toolbar .btn:last-child').classList.add('active');
             } else {
                 container.className = 'latex-container latex-display-mode';
-                container.querySelector('.latex-toolbar .btn:last-child').classList.add('active');
+                container.querySelector('.latex-toolbar .btn:first-child').classList.add('active');
                 
                 // 重新渲染LaTeX
                 const sourceText = container.querySelector('.latex-source').value;
