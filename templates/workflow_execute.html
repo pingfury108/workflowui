@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.workflowName}} - 智能工作流处理平台</title>
     <link href="/public/bootstrap.min.css" rel="stylesheet">
-    <!-- KaTeX CSS -->
-    <link href="/public/katex.min.css" rel="stylesheet">
+    <!-- MathJax配置和库 -->
     <style>
         .drop-zone {
             border: 2px dashed #ccc;
@@ -89,14 +88,13 @@
         }
         .output-display {
             min-height: 200px;
-            max-height: 400px;
-            overflow-y: auto;
+            overflow-y: visible;
             padding: 15px;
             background: #f8f9fa;
             border: 1px solid #dee2e6;
             border-radius: 0.375rem;
         }
-        .katex-display {
+        .math-display {
             background: white;
             padding: 10px;
             border-radius: 4px;
@@ -120,7 +118,18 @@
             border: 1px solid #dee2e6;
             border-radius: 4px;
             padding: 15px;
-            min-height: 100px;
+            overflow-x: auto;
+            max-width: 100%;
+        }
+        /* MathJax特定样式 */
+        .MathJax {
+            max-width: 100% !important;
+            overflow-x: auto !important;
+        }
+        .MathJax_Display {
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            margin: 0.5em 0 !important;
         }
         .latex-source {
             width: 100%;
@@ -413,61 +422,61 @@
                 // 清空现有内容
                 element.innerHTML = '';
                 
-                // 使用KaTeX渲染LaTeX
-                if (window.katex) {
-                    // 检查是否包含显示数学模式（$$...$$ 或 \[...\]）
-                    const displayMathRegex = /\$\$([^$]+)\$\$|\\\[([^\]]+)\\\]/g;
-                    const inlineMathRegex = /\$([^$]+)\$|\\\(([^)]+)\\\)/g;
-                    
-                    let content = latexText;
-                    let parts = [];
-                    let lastIndex = 0;
-                    
-                    // 处理显示数学
-                    content = content.replace(displayMathRegex, (match, display1, display2) => {
-                        const mathText = display1 || display2;
-                        try {
-                            return katex.renderToString(mathText.trim(), {
-                                displayMode: true,
-                                throwOnError: false
+                // 创建容器，让内容自然流动
+                const containerDiv = document.createElement('div');
+                containerDiv.style.cssText = 'overflow-x: auto; max-width: 100%; padding: 10px; line-height: 1.6;';
+                
+                // 直接将原始文本设置到容器中，让MathJax自动处理$...$标记
+                containerDiv.innerHTML = latexText;
+                
+                element.appendChild(containerDiv);
+                
+                // 等待MathJax加载并渲染
+                function tryRender() {
+                    if (window.MathJax && window.MathJax.typesetPromise) {
+                        // MathJax已加载完成
+                        MathJax.typesetPromise([element]).then(() => {
+                            // 渲染完成后，添加额外的样式来处理溢出
+                            const mathElements = element.querySelectorAll('.MathJax');
+                            mathElements.forEach(mathEl => {
+                                // 对于行内数学公式，不需要设置特殊样式
+                                // 对于显示数学公式，保持横向滚动
+                                if (mathEl.classList.contains('MathJax_Display')) {
+                                    mathEl.style.maxWidth = '100%';
+                                    mathEl.style.overflowX = 'auto';
+                                }
                             });
-                        } catch (e) {
-                            return `<span class="text-danger">[公式错误: ${e.message}]</span>`;
-                        }
-                    });
-                    
-                    // 处理行内数学
-                    content = content.replace(inlineMathRegex, (match, inline1, inline2) => {
-                        const mathText = inline1 || inline2;
-                        try {
-                            return katex.renderToString(mathText.trim(), {
-                                displayMode: false,
-                                throwOnError: false
+                        }).catch((err) => {
+                            console.error('MathJax渲染错误:', err);
+                            element.innerHTML = `<p class="text-danger">MathJax渲染错误: ${err.message}</p>`;
+                        });
+                    } else if (window.MathJax && window.MathJax.startup) {
+                        // MathJax正在初始化
+                        window.MathJax.startup.promise.then(() => {
+                            return MathJax.typesetPromise([element]);
+                        }).then(() => {
+                            // 渲染完成后，添加额外的样式来处理溢出
+                            const mathElements = element.querySelectorAll('.MathJax');
+                            mathElements.forEach(mathEl => {
+                                if (mathEl.classList.contains('MathJax_Display')) {
+                                    mathEl.style.maxWidth = '100%';
+                                    mathEl.style.overflowX = 'auto';
+                                }
                             });
-                        } catch (e) {
-                            return `<span class="text-danger">[公式错误: ${e.message}]</span>`;
-                        }
-                    });
-                    
-                    // 如果不是数学公式，尝试直接渲染
-                    if (!displayMathRegex.test(latexText) && !inlineMathRegex.test(latexText)) {
-                        try {
-                            const rendered = katex.renderToString(latexText.trim(), {
-                                displayMode: true,
-                                throwOnError: false
-                            });
-                            element.innerHTML = rendered;
-                        } catch (e) {
-                            // 如果不是有效的LaTeX，按普通文本显示
-                            element.innerHTML = `<pre>${latexText}</pre>`;
-                        }
+                        }).catch((err) => {
+                            console.error('MathJax启动错误:', err);
+                            element.innerHTML = `<p class="text-danger">MathJax启动错误: ${err.message}</p>`;
+                        });
                     } else {
-                        element.innerHTML = content;
+                        // MathJax还未加载，等待一段时间后重试
+                        setTimeout(tryRender, 100);
                     }
-                } else {
-                    element.innerHTML = '<p class="text-danger">KaTeX库未加载</p>';
                 }
+                
+                tryRender();
+                
             } catch (error) {
+                console.error('渲染错误:', error);
                 element.innerHTML = `<p class="text-danger">渲染错误: ${error.message}</p>`;
             }
         }
@@ -841,9 +850,26 @@
             setupAutoResizeTextareas();
         });
     </script>
+    <script>
+        // MathJax 配置
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                packages: {'[+]': ['base', 'ams', 'cases']}
+            },
+            startup: {
+                ready: () => {
+                    console.log('MathJax is loaded, but not yet initialized');
+                    MathJax.startup.defaultReady();
+                    console.log('MathJax is initialized, and the initial typeset is queued');
+                }
+            }
+        };
+    </script>
     
-    <!-- KaTeX JS -->
-    <script src="/public/katex.min.js"></script>
+    <!-- MathJax JS -->
+    <script id="MathJax-script" async src="/public/mathjax/es5/tex-mml-chtml.js"></script>
     
     <!-- Bootstrap JS for modal -->
     <script src="/public/bootstrap.bundle.min.js"></script>
