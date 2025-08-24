@@ -347,6 +347,19 @@
                     break;
                     
                 case 'list_image':
+                    // 创建容器，包含批量下载按钮和图片网格
+                    const imageContainer = document.createElement('div');
+                    imageContainer.className = 'image-container';
+                    
+                    // 创建批量下载按钮（仅在有图片时显示）
+                    if (Array.isArray(value) && value.length > 0) {
+                        const downloadButton = document.createElement('button');
+                        downloadButton.className = 'btn btn-success btn-sm mb-3';
+                        downloadButton.innerHTML = '<i class="bi bi-download"></i> 批量下载图片';
+                        downloadButton.onclick = () => batchDownloadImages(value, label);
+                        imageContainer.appendChild(downloadButton);
+                    }
+                    
                     const imageGrid = document.createElement('div');
                     imageGrid.className = 'image-grid';
                     
@@ -377,7 +390,8 @@
                         imageGrid.appendChild(placeholderText);
                     }
                     
-                    resultDiv.appendChild(imageGrid);
+                    imageContainer.appendChild(imageGrid);
+                    resultDiv.appendChild(imageContainer);
                     break;
                     
                 default:
@@ -875,6 +889,112 @@
     <script src="/public/bootstrap.bundle.min.js"></script>
     
     <script>
+        // 批量下载图片功能
+        async function batchDownloadImages(imageUrls, categoryName = '图片') {
+            if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
+                alert('没有图片可下载');
+                return;
+            }
+
+            // 创建下载状态提示
+            const downloadStatus = document.createElement('div');
+            downloadStatus.className = 'alert alert-info position-fixed';
+            downloadStatus.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            downloadStatus.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    <span>正在准备下载 ${imageUrls.length} 张图片...</span>
+                </div>
+            `;
+            document.body.appendChild(downloadStatus);
+
+            try {
+                // 依次下载每张图片
+                for (let i = 0; i < imageUrls.length; i++) {
+                    const imageUrl = imageUrls[i];
+                    
+                    // 更新下载状态
+                    downloadStatus.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            <span>正在下载第 ${i + 1} / ${imageUrls.length} 张图片...</span>
+                        </div>
+                    `;
+                    
+                    try {
+                        // 获取图片数据
+                        const response = await fetch(imageUrl);
+                        if (!response.ok) {
+                            console.warn(`无法下载图片 ${i + 1}: ${imageUrl}`);
+                            continue;
+                        }
+                        
+                        const blob = await response.blob();
+                        
+                        // 确定文件扩展名
+                        const contentType = response.headers.get('content-type') || '';
+                        let extension = 'jpg'; // 默认扩展名
+                        if (contentType.includes('png')) {
+                            extension = 'png';
+                        } else if (contentType.includes('gif')) {
+                            extension = 'gif';
+                        } else if (contentType.includes('webp')) {
+                            extension = 'webp';
+                        } else if (contentType.includes('svg')) {
+                            extension = 'svg';
+                        }
+                        
+                        // 生成文件名（按顺序编号）
+                        const fileName = `${categoryName}_${String(i + 1).padStart(3, '0')}.${extension}`;
+                        
+                        // 创建下载链接并触发下载
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        
+                        // 添加延迟，避免同时下载过多文件
+                        if (i < imageUrls.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                        }
+                        
+                    } catch (error) {
+                        console.error(`下载图片 ${i + 1} 时出错:`, error);
+                    }
+                }
+                
+                // 下载完成
+                downloadStatus.className = 'alert alert-success position-fixed';
+                downloadStatus.innerHTML = `
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-check-circle-fill me-2"></i>已完成 ${imageUrls.length} 张图片的下载</span>
+                        <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+                    </div>
+                `;
+                
+                // 3秒后自动关闭成功提示
+                setTimeout(() => {
+                    if (downloadStatus && downloadStatus.parentNode) {
+                        downloadStatus.remove();
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                console.error('批量下载出错:', error);
+                downloadStatus.className = 'alert alert-danger position-fixed';
+                downloadStatus.innerHTML = `
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-exclamation-triangle-fill me-2"></i>下载失败: ${error.message}</span>
+                        <button type="button" class="btn-close btn-sm" onclick="this.parentElement.parentElement.remove()"></button>
+                    </div>
+                `;
+            }
+        }
+        
         // 自动调整textarea高度的函数
         function autoResizeTextarea(textarea) {
             if (!textarea) return;
